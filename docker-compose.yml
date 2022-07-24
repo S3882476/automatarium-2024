@@ -1,0 +1,30 @@
+version: "3.7"
+services:
+  # Frontend React App
+  frontend:
+    image: frontend/Dockerfile
+    environment:
+      - BASE_URL=http://frontend
+      - API=http://backend:3001
+  
+  # Backend Express App
+  backend:
+    image: backend/Dockerfile
+    environment:
+      # TODO: DB env vars
+      - DB_USERNAME=automatarium
+      - DB_PASSWORD=jamesharland3791
+      - DB_HOST=mongodb
+      - PORT=3001
+      - FIREBASE_SERVICE_ACCOUNT=./firebase_service_account.json
+  
+  # Dedicated mongodb database
+  mongodb:
+    image: mongo:5.0
+    ports:
+      - 27017:27017
+    volumes:
+      - ~/apps/mongo:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=automatarium
+      - MONGO_INITDB_ROOT_PASSWORD=jamesharland3791
