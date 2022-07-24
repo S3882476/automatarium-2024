@@ -2,14 +2,14 @@ version: "3.7"
 services:
   # Frontend React App
   frontend:
-    image: frontend/Dockerfile
+    build: ./frontend/
     environment:
       - BASE_URL=http://frontend
       - API=http://backend:3001
   
   # Backend Express App
   backend:
-    image: backend/Dockerfile
+    build: ./backend/
     environment:
       # TODO: DB env vars
       - DB_USERNAME=automatarium
