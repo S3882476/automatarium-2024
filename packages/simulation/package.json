@@ -1,6 +1,6 @@
 {
   "name": "@automatarium/simulation",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Automata simulation utilities for Automatarium",
   "main": "dist/index.js",
   "source": "src/index.ts",
