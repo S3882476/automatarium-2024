@@ -1,43 +1,34 @@
-import { createPortal } from 'react-dom'
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { useProjectStore, useViewStore } from '/src/stores'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import {
-    Container,
-    TickerTapeContainer,
-    TickerTape,
-    TickerTapeCell,
-    SerratedEdgeContainer,
-    PointerContainer,
+  Container,
+  TickerTapeContainer,
+  TickerTape,
+  TickerTapeCell,
+  SerratedEdgeContainer,
+  PointerContainer
 } from './tmTraceStepWindowStyle'
 
-const TMTraceStepWindow = ( {trace, pointer, accepted, isEnd} ) => {
+const TMTraceStepWindow = ({ trace, pointer, accepted, isEnd }) => {
+  const [green, setGreen] = useState(false)
+  const [red, setRed] = useState(false)
 
-    const [green, setGreen] = useState(false)
-    const [red, setRed] = useState(false)
-    const containerRef = useRef()
-
-    useEffect( () => {
-        if (accepted && isEnd) {
-            setGreen(true)
-            setRed(false)
-        }
-        else if (isEnd && !accepted){
-            setGreen(false)
-            setRed(true)
-        }
-        else {
-            setGreen(false)
-            setRed(false)
-        }
-    }, [accepted, isEnd])
-
-
-    return (
+  useEffect(() => {
+    if (accepted && isEnd) {
+      setGreen(true)
+      setRed(false)
+    } else if (isEnd && !accepted) {
+      setGreen(false)
+      setRed(true)
+    } else {
+      setGreen(false)
+      setRed(false)
+    }
+  }, [accepted, isEnd])
+  return (
         <>
         {trace.length &&
-        <Container style={{background: green ? '#689540' : red ? '#d30303' : 'var(--toolbar)'}} >
+        <Container style={{ background: green ? '#689540' : red ? '#d30303' : 'var(--toolbar)' }} >
             <div>
                 <Pointer />
                 <TickerTapeContainer>
@@ -53,7 +44,7 @@ const TMTraceStepWindow = ( {trace, pointer, accepted, isEnd} ) => {
         </Container>
         }
     </>
-    )
+  )
 }
 
 const SerratedEdge = ({ flipped }) => (
@@ -68,4 +59,4 @@ const Pointer = () => (
     </PointerContainer>
 )
 
-export default TMTraceStepWindow;
+export default TMTraceStepWindow

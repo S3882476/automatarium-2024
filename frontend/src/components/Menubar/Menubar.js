@@ -19,7 +19,7 @@ import {
   DropdownMenus,
   Actions,
   DropdownButtonWrapper,
-  NameInput,
+  NameInput
 } from './menubarStyle'
 
 import menus from './menus'
@@ -47,7 +47,7 @@ const DropdownButton = ({ item, dropdown, setDropdown, ...props }) => {
       <Dropdown
         style={{
           top: `${rect.y + rect.height + 10}px`,
-          left: `${rect.x}px`,
+          left: `${rect.x}px`
         }}
         items={item.items}
         visible={dropdown === item.label}
@@ -85,9 +85,17 @@ const Menubar = () => {
     setEditingTitle(true)
     window.setTimeout(() => titleRef.current?.select(), 50)
   }
+
+  const saveProject = () => {
+    const project = useProjectStore.getState().project
+    upsertProject({ ...project, meta: { ...project.meta, dateEdited: new Date().getTime() } })
+    setLastSaveDate(new Date().getTime())
+  }
+
   const handleSaveProjectName = () => {
     if (titleValue && !/^\s*$/.test(titleValue)) {
       setProjectName(titleValue)
+      saveProject()
     }
     setEditingTitle(false)
   }
@@ -95,7 +103,7 @@ const Menubar = () => {
   useEvent('beforeunload', e => {
     if (!isSaving) return
     e.preventDefault()
-    return e.returnValue = 'Your project isn\'t saved yet, are you sure you want to leave?'
+    return 'Your project isn\'t saved yet, are you sure you want to leave?'
   }, [isSaving], { options: { capture: true }, target: window })
 
   return (
@@ -106,9 +114,7 @@ const Menubar = () => {
             e.preventDefault()
             if (isSaving) {
               // If there are unsaved changes, save and then navigate
-              const project = useProjectStore.getState().project
-              upsertProject({...project, meta: { ...project.meta, dateEdited: new Date().getTime() }})
-              setLastSaveDate(new Date().getTime())
+              saveProject()
             }
             navigate('/new')
           }}>
@@ -117,7 +123,8 @@ const Menubar = () => {
 
           <div>
             <NameRow>
-              {editingTitle ? (
+              {editingTitle
+                ? (
                 <NameInput
                   value={titleValue}
                   onChange={e => setTitleValue(e.target.value)}
@@ -125,9 +132,10 @@ const Menubar = () => {
                   onKeyDown={e => e.code === 'Enter' && handleSaveProjectName()}
                   ref={titleRef}
                 />
-              ) : (
+                  )
+                : (
                 <Name onClick={handleEditProjectName} title="Edit title">{projectName ?? 'Untitled Project'}</Name>
-              )}
+                  )}
               <SaveStatus $show={isSaving}>Saving...</SaveStatus>
             </NameRow>
 
