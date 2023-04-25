@@ -7,12 +7,14 @@
     "start": "parcel public/index.html --no-cache",
     "prebuild": "rm -rf dist",
     "build": "parcel build public/index.html",
-    "lint": "eslint . --ext .js,.ts",
-    "lint:fix": "eslint . --ext .js,.ts --fix"
+    "lint": "eslint . --ext .js,.ts --cache --cache-location '../.eslintcache'",
+    "lint:fix": "yarn lint --fix",
+    "check:types": "tsc --noemit"
   },
   "dependencies": {
     "@automatarium/jflap-translator": "1.0.0",
     "@automatarium/simulation": "2.0.0",
+    "@types/react": "^18.0.33",
     "axios": "^0.26.1",
     "dayjs": "^1.11.2",
     "firebase": "^9.6.10",
@@ -29,7 +31,7 @@
     "react-hook-form": "^7.28.1",
     "react-lottie-player": "^1.4.3",
     "react-router-dom": "^6.2.2",
-    "zustand": "^3.7.1"
+    "zustand": "^4.3.7"
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.8.3",

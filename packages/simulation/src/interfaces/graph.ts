@@ -1,43 +1,24 @@
-import { Transition } from '../graph'
+import { BaseAutomataTransition } from 'frontend/src/types/ProjectTypes'
 
 export abstract class State {
   // eslint-disable-next-line no-useless-constructor
-  protected constructor (private _id: number, private _isFinal: boolean) {}
-  get id () {
-    return this._id
-  }
-
-  get isFinal () {
-    return this._isFinal
-  }
+  protected constructor (readonly id: number, readonly isFinal: boolean) {}
 
     abstract key(): string;
 }
 
 export class Node<S extends State> {
-  private _depth: number
+  private readonly depth: number
   constructor (
-        protected _state: S,
-        protected _parent: Node<S> | null = null
+        readonly state: S,
+        readonly parent: Node<S> | null = null
   ) {
-    this._depth = _parent ? _parent.depth + 1 : 0
-  }
-
-  get depth () {
-    return this._depth
-  }
-
-  get state () {
-    return this._state
-  }
-
-  get parent () {
-    return this._parent
+    this.depth = parent ? parent.depth + 1 : 0
   }
 }
 
 // eslint-disable-next-line no-unused-vars
-export abstract class Graph<S extends State, T extends Transition> {
+export abstract class Graph<S extends State, T extends BaseAutomataTransition> {
   protected _initial: Node<S>
   protected states: S[]
   public transitions: T[]

@@ -10,9 +10,13 @@
   "scripts": {
     "watch": "parcel watch",
     "build": "parcel build",
-    "lint": "eslint . --ext .js,.ts",
     "test": "jest",
-    "lint:fix": "eslint . --ext .js,.ts --fix"
+    "lint": "eslint . --ext .js,.ts --cache --cache-location '../../.eslintcache'",
+    "lint:fix": "yarn lint --fix",
+    "check:types": "tsc --noemit"
+  },
+  "dependencies": {
+    "frontend": "1.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
@@ -29,6 +33,5 @@
     "parcel": "^2.4.1",
     "ts-jest": "^29.0.5",
     "typescript": "^4.7.3"
-  },
-  "dependencies": {}
+  }
 }
