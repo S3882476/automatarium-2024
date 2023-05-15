@@ -74,7 +74,7 @@ type Dialog = TransitionDialog | CommentDialog | StateDialog
 
 const InputDialogs = () => {
   const [dialog, setDialog] = useState<Dialog | undefined>()
-  const inputRef = useRef()
+  const inputRef = useRef<HTMLInputElement>()
   const inputPopRef = useRef()
   const inputPushRef = useRef()
 
@@ -95,7 +95,6 @@ const InputDialogs = () => {
   const statePrefix = useProjectStore(s => s.project.config.statePrefix)
   const projectType = useProjectStore(s => s.project.config.type)
   const hideDialog = useCallback(() => setDialog({ ...dialog, visible: false }), [dialog])
-  // @ts-ignore
   const focusInput = useCallback(() => setTimeout(() => inputRef.current?.focus(), 100), [inputRef.current])
   const arr = [inputWriteRef.current, inputDirectionRef.current, inputRef.current]
   useEvent('editTransition', ({ detail: { id } }) => {
@@ -152,8 +151,8 @@ const InputDialogs = () => {
    * This is just want it was like before so assuming there is a design reason
    */
   const formatRangeChars = (input: string): string => {
-    const ranges = value.match(/\[(.*?)]/g)
-    const chars = value.replace(/\[(.*?)]/g, '')
+    const ranges = input.match(/\[(.*?)]/g)
+    const chars = input.replace(/\[(.*?)]/g, '')
     return `${Array.from(new Set(chars)).join('')}${ranges ? ranges.join('') : ''}`
   }
 
