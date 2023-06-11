@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, HTMLAttributes } from 'react'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -6,8 +6,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { Button, Logo, Dropdown } from '/src/components'
 import { useAuth, useEvent } from '/src/hooks'
 import { useProjectStore, useProjectsStore } from '/src/stores'
-import LoginPage from '/src/pages/Login/Login'
-import SignupPage from '/src/pages/Signup/Signup'
+import { Signup, Login } from '/src/pages'
 import ShareModal from './components/ShareModal/ShareModal'
 
 import {
@@ -28,7 +27,13 @@ import { ContextItem } from '/src/components/ContextMenus/contextItem'
 // Extend dayjs
 dayjs.extend(relativeTime)
 
-const DropdownButton = ({ item, dropdown, setDropdown, ...props }) => {
+interface DropdownButton extends HTMLAttributes<HTMLButtonElement> {
+  item: ContextItem
+  dropdown: string
+  setDropdown: (x: undefined) => void
+}
+
+const DropdownButton = ({ item, dropdown, setDropdown, ...props }: DropdownButton) => {
   const buttonRef = useRef<HTMLButtonElement>()
   const [rect, setRect] = useState<DOMRect>()
 
@@ -164,8 +169,8 @@ const Menubar = () => {
           {user && <Button disabled={userLoading} onClick={() => setShareModalVisible(true)}>Share</Button>}
         </Actions>
 
-        <LoginPage.Modal isOpen={loginModalVisible} onClose={() => setLoginModalVisible(false)} />
-        <SignupPage.Modal isOpen={signupModalVisible} onClose={() => setSignupModalVisible(false)} />
+        <Login isOpen={loginModalVisible} onClose={() => setLoginModalVisible(false)} />
+        <Signup isOpen={signupModalVisible} onClose={() => setSignupModalVisible(false)} />
         <ShareModal isOpen={shareModalVisible} projectId={projectId} onClose={() => setShareModalVisible(false)} />
       </Wrapper>
     </>

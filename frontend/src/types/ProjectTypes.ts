@@ -1,3 +1,5 @@
+import { ColourName } from '../config'
+
 /**
  * Possible types of a project
  * - FSA: Finite state automata
@@ -24,7 +26,7 @@ export type AutomatariumTheme = 'system' | 'light' | 'dark'
 export interface ProjectConfig {
     acceptanceCriteria: string,
     // Could be made into enum
-    color: string,
+    color: ColourName | '',
     statePrefix: string,
     type: ProjectType
 }
@@ -41,7 +43,7 @@ export interface ProjectComment {
     x: number,
     y: number,
     text: string,
-    id?: number
+    id: number
 }
 
 export interface AutomataState {
@@ -156,6 +158,11 @@ export type CopyData = {
     initialStateId: number | null
 }
 
+export type Template = CopyData & {
+    _id: string,
+    name: string,
+    date: number
+}
 /**
  * Small helper function to change the value of a type at block level.
  * Use this with care since it does override the type system.

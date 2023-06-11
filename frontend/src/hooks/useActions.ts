@@ -1,17 +1,17 @@
 import { MouseEvent, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { useProjectsStore, useProjectStore, useSelectionStore, useToolStore, useViewStore } from '/src/stores'
+import { useProjectsStore, useProjectStore, useSelectionStore, useToolStore, useViewStore, useTemplatesStore, useTemplateStore } from '/src/stores'
 import { SCROLL_MAX, SCROLL_MIN, VIEW_MOVE_STEP, COPY_DATA_KEY } from '/src/config/interactions'
-import { PASTE_POSITION_OFFSET } from '/src/config/rendering'
 import { convertJFLAPXML } from '@automatarium/jflap-translator'
 import { haveInputFocused } from '/src/util/actions'
 import { dispatchCustomEvent } from '/src/util/events'
-import { createNewProject } from '/src/stores/useProjectStore'
+import { InsertGroupResponseType, StoredProject, createNewProject } from '/src/stores/useProjectStore'
 import { reorderStates } from '@automatarium/simulation/src/reorder'
 import { convertNFAtoDFA } from '@automatarium/simulation/src/convert'
-import { FSAProjectGraph } from '/src/types/ProjectTypes'
+import { CopyData, FSAProjectGraph } from '/src/types/ProjectTypes'
 import { showWarning } from '/src/components/Warning/Warning'
+import { stopTemplateInsert } from '/src/components/Sidepanel/Panels/Templates/Templates'
 
 /**
  * Combination of keys. Used to call an action
@@ -34,6 +34,31 @@ export const formatHotkey = (hotkey: HotKey): string => [
   hotkey.shift && (isWindows ? 'Shift' : '⇧'),
   hotkey.key?.toUpperCase()
 ].filter(Boolean).join(isWindows ? '+' : ' ')
+
+/**
+ * Calculates the coodinates and scale in order to zoom the viewing window to the project
+ */
+export const calculateZoomFit = () => {
+  // Get state
+  const view = useViewStore.getState()
+
+  // Margin around view
+  const border = 40
+
+  // Get the bounding box of the SVG group
+  const b = (document.querySelector('#automatarium-graph > g') as SVGGElement).getBBox()
+  // Bail if the bounding box is too small
+  if (Math.max(Math.abs(b.width), Math.abs(b.height)) < border) return
+  const [x, y, width, height] = [b.x - border, b.y - border, b.width + border * 2, b.height + border * 2]
+  // Calculate fit region
+  const desiredScale = Math.max(width / view.size.width, height / view.size.height)
+  // Calculate x and y to centre graph
+  return {
+    scale: desiredScale,
+    x: x + (width - view.size.width * desiredScale) / 2,
+    y: y + (height - view.size.height * desiredScale) / 2
+  }
+}
 
 const useActions = (registerHotkeys = false) => {
   const undo = useProjectStore(s => s.undo)
@@ -58,15 +83,20 @@ const useActions = (registerHotkeys = false) => {
   const upsertProject = useProjectsStore(s => s.upsertProject)
   const moveView = useViewStore(s => s.moveViewPosition)
   const createState = useProjectStore(s => s.createState)
-  const createComment = useProjectStore(s => s.createComment)
-  const createTransition = useProjectStore(s => s.createTransition)
   const screenToViewSpace = useViewStore(s => s.screenToViewSpace)
   const setTool = useToolStore(s => s.setTool)
   const project = useProjectStore(s => s.project)
+  const insertGroup = useProjectStore(s => s.insertGroup)
   const updateGraph = useProjectStore(s => s.updateGraph)
   const projectType = useProjectStore(s => s.project.config.type)
+  const setViewPositionAndScale = useViewStore(s => s.setViewPositionAndScale)
+  const template = useTemplateStore(s => s.template)
+  const setTemplate = useTemplateStore(s => s.setTemplate)
+  const deleteTemplate = useTemplatesStore(s => s.deleteTemplate)
 
   const navigate = useNavigate()
+
+  const nothingSelected = selectedCommentsIds.length === 0 && selectedStatesIds.length === 0 && selectedTransitionsIds.length === 0
 
   // TODO: memoize
   const actions: Record<string, Handler> = {
@@ -144,101 +174,28 @@ const useActions = (registerHotkeys = false) => {
     COPY: {
       hotkeys: [{ key: 'c', meta: true }],
       handler: () => {
-        const selectedStates = selectedStatesIds.map((stateId) => {
-          return project.states.find((state) => {
-            return state.id === stateId
-          })
-        })
-        const selectedComments = selectedCommentsIds.map((commentId) => {
-          return project.comments.find((comment) => {
-            return comment.id === commentId
-          })
-        })
-        const selectedTransitions = selectedTransitionsIds.map((transitionId) => {
-          return project.transitions.find((transition) => {
-            return transition.id === transitionId
-          })
-        })
-        const isInitialSelected = selectedStatesIds.includes(project.initialState)
         // This will use the CopyData type defined in ProjectTypes
-        const copyData = {
-          states: selectedStates,
-          comments: selectedComments,
-          transitions: selectedTransitions,
-          projectSource: project._id,
-          projectType: project.projectType,
-          initialStateId: isInitialSelected ? project.initialState : null
-        }
+        const copyData = selectionToCopyTemplate(selectedStatesIds, selectedCommentsIds, selectedTransitionsIds, project)
         localStorage.setItem(COPY_DATA_KEY, JSON.stringify(copyData))
       }
     },
     PASTE: {
       hotkeys: [{ key: 'v', meta: true }],
       handler: () => {
-        const pasteData = JSON.parse(localStorage.getItem(COPY_DATA_KEY))
+        const pasteData = JSON.parse(localStorage.getItem(COPY_DATA_KEY)) as CopyData
         if (pasteData === null) {
           // Copy has not been executed
           return
         }
-        let isInitialStateUpdated = false
-        if (pasteData.projectType !== project.projectType) {
-          showWarning(`Error: you cannot paste elements from a ${pasteData.projectType} project into a ${project.projectType} project.`)
-          return
+        const insertResponse = insertGroup(pasteData)
+        if (insertResponse.type === InsertGroupResponseType.SUCCESS) {
+          selectComments(insertResponse.body.comments.map(comment => comment.id))
+          selectStates(insertResponse.body.states.map(state => state.id))
+          selectTransitions(insertResponse.body.transitions.map(transition => transition.id))
+          commit()
+        } else if (insertResponse.type === InsertGroupResponseType.FAIL) {
+          alert(insertResponse.body)
         }
-        const isNewProject = pasteData.projectSource !== project._id
-        // Track which transitions have been updated with new state ids
-        const newTransitions = structuredClone(pasteData.transitions)
-        newTransitions.forEach(transition => {
-          transition.from = null
-          transition.to = null
-        })
-        // Add and select states, comments, and transitions
-        pasteData.states.forEach(state => {
-          // TODO: ensure position isn't out of window
-          state.x += PASTE_POSITION_OFFSET
-          state.y += PASTE_POSITION_OFFSET
-          const newId = createState(state)
-          // Update transitions to new state id
-          pasteData.transitions.forEach((transition, i) => {
-            if (transition.from === state.id && newTransitions[i].from === null) {
-              newTransitions[i].from = newId
-            }
-            if (transition.to === state.id && newTransitions[i].to === null) {
-              newTransitions[i].to = newId
-            }
-          })
-          // Update initial state id if applicable
-          if (pasteData.initialStateId === state.id && !isInitialStateUpdated) {
-            pasteData.initialStateId = newId
-            isInitialStateUpdated = true
-          }
-          state.id = newId
-        })
-        // Error if trying to paste transition without its to and from states
-        if (newTransitions.find(transition => transition.from === null || transition.to === null)) {
-          showWarning('Sorry, there was an error while pasting')
-          removeStates(pasteData.states.map(state => state.id))
-          return
-        }
-        pasteData.transitions = newTransitions
-        selectStates(pasteData.states.map(state => state.id))
-        pasteData.comments.forEach(comment => {
-          // TODO: ensure position isn't out of window
-          comment.x += PASTE_POSITION_OFFSET
-          comment.y += PASTE_POSITION_OFFSET
-          const newId = createComment(comment)
-          comment.id = newId
-        })
-        selectComments(pasteData.comments.map(comment => comment.id))
-        pasteData.transitions.forEach(transition => {
-          const newId = createTransition(transition)
-          transition.id = newId
-        })
-        selectTransitions(pasteData.transitions.map(transition => transition.id))
-        if (isNewProject && pasteData.initialStateId !== null && project.initialState === null) {
-          setStateInitial(pasteData.initialStateId)
-        }
-        commit()
       }
 
     },
@@ -249,14 +206,17 @@ const useActions = (registerHotkeys = false) => {
     DELETE: {
       hotkeys: [{ key: 'Delete' }, { key: 'Backspace' }],
       handler: () => {
-        const selectionState = useSelectionStore.getState()
-        const selectedStateIDs = selectionState.selectedStates
-        const selectedTransitionIDs = selectionState.selectedTransitions
-        const selectedCommentIDs = selectionState.selectedComments
-        if (selectedStateIDs.length > 0 || selectedTransitionIDs.length > 0 || selectedCommentIDs.length > 0) {
-          removeStates(selectedStateIDs)
-          removeTransitions(selectedTransitionIDs)
-          removeComments(selectedCommentIDs)
+        // If a template is selected and nothing else is, delete the template
+        if (template !== null && nothingSelected) {
+          if (window.confirm(`Are you sure you want to delete your template '${template.name}'?`)) {
+            deleteTemplate(template._id)
+            stopTemplateInsert(setTemplate, setTool)
+          }
+        } else if (!nothingSelected) {
+          // Otherwise, delete selection
+          removeStates(selectedStatesIds)
+          removeTransitions(selectedTransitionsIds)
+          removeComments(selectedCommentsIds)
           selectNone()
           commit()
         }
@@ -277,25 +237,10 @@ const useActions = (registerHotkeys = false) => {
     ZOOM_FIT: {
       hotkeys: [{ key: 'f', shift: true }],
       handler: () => {
-        // Get state
-        const view = useViewStore.getState()
-
-        // Margin around view
-        const border = 40
-
-        // Get the bounding box of the SVG group
-        const b = (document.querySelector('#automatarium-graph > g') as SVGGraphicsElement).getBBox()
-        if (Math.max(b.width, b.height) < border) return // Bail if the bounding box is too small
-        const [x, y, width, height] = [b.x - border, b.y - border, b.width + border * 2, b.height + border * 2]
-
-        // Calculate fit region
-        const desiredScale = Math.max(width / view.size.width, height / view.size.height)
-        view.setViewScale(desiredScale)
-        // Calculate x and y to centre graph
-        view.setViewPosition({
-          x: x + (width - view.size.width * desiredScale) / 2,
-          y: y + (height - view.size.height * desiredScale) / 2
-        })
+        const values = calculateZoomFit()
+        if (values) {
+          setViewPositionAndScale({ x: values.x, y: values.y }, values.scale)
+        }
       }
     },
     FULLSCREEN: {
@@ -325,10 +270,6 @@ const useActions = (registerHotkeys = false) => {
           showWarning(error.message)
         }
       }
-    },
-    MINIMIZE_DFA: {
-      disabled: () => true,
-      handler: () => console.log('Minimize DFA')
     },
     AUTO_LAYOUT: {
       disabled: () => true,
@@ -545,7 +486,7 @@ const useActions = (registerHotkeys = false) => {
   }]))), [actions])
 }
 
-const zoomViewTo = to => {
+const zoomViewTo = (to: number) => {
   const view = useViewStore.getState()
   if (view.scale === to) { return }
   const newScale = Math.min(SCROLL_MAX, Math.max(SCROLL_MIN, to))
@@ -561,7 +502,7 @@ const zoomViewTo = to => {
   }
 }
 
-const promptLoadFile = (parse, onData, errorMessage = 'Failed to parse file') => {
+const promptLoadFile = <T>(parse: (text: ArrayBuffer | string) => T, onData: (val: T) => void, errorMessage = 'Failed to parse file') => {
   // Prompt user for file input
   const input = document.createElement('input')
   input.type = 'file'
@@ -590,6 +531,24 @@ const promptLoadFile = (parse, onData, errorMessage = 'Failed to parse file') =>
     reader.readAsText(input.files[0])
   }
   input.click()
+}
+
+// Takes in the IDs of states, comments, and transitions
+// Parameters also include  the current project and whether a template is being created
+// Outputs a CopyData to be copied or Template object to be created into a template
+export const selectionToCopyTemplate = (stateIds: number[], commentIds: number[], transitionIds: number[], project: StoredProject): CopyData => {
+  const selectedStates = project.states.filter(state => stateIds.includes(state.id))
+  const selectedComments = project.comments.filter(comment => commentIds.includes(comment.id))
+  const selectedTransitions = project.transitions.filter(transition => transitionIds.includes(transition.id))
+  const isInitialSelected = stateIds.includes(project.initialState)
+  return {
+    states: selectedStates,
+    comments: selectedComments,
+    transitions: selectedTransitions,
+    projectSource: project._id,
+    projectType: project.projectType,
+    initialStateId: isInitialSelected ? project.initialState : null
+  }
 }
 
 export default useActions

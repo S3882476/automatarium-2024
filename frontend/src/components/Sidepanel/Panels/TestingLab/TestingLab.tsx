@@ -1,4 +1,4 @@
-import { createContext, useState, useCallback, useMemo, useEffect } from 'react'
+import { createContext, useState, useCallback, useMemo, useEffect, KeyboardEvent } from 'react'
 import { SkipBack, ChevronLeft, ChevronRight, SkipForward, Plus, Trash2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 
 import { useDibEgg } from '/src/hooks'
@@ -8,7 +8,6 @@ import { closureWithPredicate, simulateFSA, simulatePDA } from '@automatarium/si
 
 import { simulateTM } from '@automatarium/simulation/src/simulateTM'
 import useTMSimResultStore from '../../../../stores/useTMSimResultStore'
-import { dispatchCustomEvent } from '/src/util/events'
 
 import {
   StepButtons,
@@ -75,16 +74,22 @@ const TestingLab = () => {
               ? simulatePDA(graph, input ?? '')
               : simulateFSA(graph, input ?? '')
       // Formats a symbol. Makes an empty symbol become a lambda
-      const formatSymbol = (char: string): string => char === '' ? 'λ' : char
+      const formatSymbol = (char?: string): string => char === '' ? 'λ' : char
       return {
         ...result,
         // We need format the symbols in the trace so any empty symbols become lambdas
-        trace: result.trace.map(step => ({
+        trace: result.trace.map((step: FSAExecutionTrace | PDAExecutionTrace) => ({
           to: step.to,
           read: formatSymbol(step.read),
-          pop: formatSymbol(step.pop),
-          push: formatSymbol(step.push),
-          currentStack: step.currentStack
+          // Add extra info if its a PDA trace.
+          // I know this isn't needed, but it pleases typescript
+          ...('currentStack' in step
+            ? {
+                pop: formatSymbol(step.pop),
+                push: formatSymbol(step.push),
+                currentStack: step.currentStack
+              }
+            : {})
         } as FSAExecutionTrace | PDAExecutionTrace)),
         transitionCount: transitionCount(result)
       }
@@ -118,7 +123,7 @@ const TestingLab = () => {
   // Determine last position allowed
   const lastTraceIdx = simulationResult?.transitionCount
 
-  const getStateName = useCallback(id => graph.states.find(s => s.id === id)?.name, [graph.states])
+  const getStateName = useCallback((id: number) => graph.states.find(s => s.id === id)?.name, [graph.states])
 
   const traceOutput = useMemo(() => {
     // No output before simulating
@@ -135,7 +140,7 @@ const TestingLab = () => {
     // Represent transitions as strings of form start -> end
     const transitions = trace
       .slice(0, -1)
-      .map((_, i) => [trace[i + 1]?.read, trace[i]?.to, trace[i + 1]?.to])
+      .map<[string, number, number]>((_, i) => [trace[i + 1]?.read, trace[i]?.to, trace[i + 1]?.to])
       .map(([read, start, end]) => `${read}: ${getStateName(start) ?? statePrefix + start} -> ${getStateName(end) ?? statePrefix + end}`)
       .filter((_x, i) => i < traceIdx)
 
@@ -165,17 +170,6 @@ const TestingLab = () => {
     // Try this for PDA as well - stack display
   }, [traceIdx])
 
-  // Show bottom panel with TM Tape Lab
-  useEffect(() => {
-    if (projectType === 'TM') {
-      if (showTraceTape) {
-        dispatchCustomEvent('bottomPanel:open', { panel: 'tmTape' })
-      } else {
-        dispatchCustomEvent('bottomPanel:close', null)
-      }
-    }
-  }, [showTraceTape])
-
   // Update warnings
   const noInitialState = [null, undefined].includes(graph?.initialState) || !graph?.states.find(s => s.id === graph?.initialState)
   const noFinalState = !graph?.states.find(s => s.isFinal)
@@ -188,15 +182,16 @@ const TestingLab = () => {
     const closure = closureWithPredicate(graph, graph.initialState, () => true)
     return Array.from(closure).some(({ state }) => graph.states.find(s => s.id === state)?.isFinal)
   }, [graph])
-  if (!pathToFinal && !noInitialState && !noFinalState) { warnings.push('There is no path to a final state') }
+  if (!pathToFinal) { warnings.push('There is no path to a final state') }
 
   // :^)
   const dibEgg = useDibEgg()
 
   // Determine input position
   const currentTrace = simulationResult?.trace.slice(0, traceIdx + 1) ?? []
-  const inputIdx = currentTrace.map(tr => tr.read && tr.read !== 'λ' ? 1 : 0).reduce((a, b) => a + b, 0) ?? 0
+  const inputIdx = currentTrace.map(tr => 'read' in tr && tr.read !== 'λ' ? 1 : 0).reduce((a, b) => a + b, 0) ?? 0
   const currentStateID = currentTrace?.[currentTrace.length - 1]?.to ?? graph?.initialState
+  const automataIsInvalid = noInitialState || noFinalState || !pathToFinal
 
   return (
     <>
@@ -224,16 +219,14 @@ const TestingLab = () => {
 
         <StepButtons>
           <Button icon={<SkipBack size={20} />}
-            disabled={traceIdx <= 0 ||
-            (projectType === 'TM' && !showTraceTape)
+            disabled={traceIdx <= 0 || automataIsInvalid
             }
             onClick={() => {
               setTraceIdx(0)
             }} />
 
           <Button icon={<ChevronLeft size={23} />}
-            disabled={traceIdx <= 0 ||
-            (projectType === 'TM' && !showTraceTape)
+            disabled={traceIdx <= 0 || automataIsInvalid
             }
             onClick={() => {
               setTraceIdx(traceIdx - 1)
@@ -241,9 +234,7 @@ const TestingLab = () => {
 
           <Button icon={<ChevronRight size={23} />}
             disabled={
-              traceIdx >= lastTraceIdx ||
-              noInitialState ||
-              (projectType === 'TM' && !showTraceTape)
+              traceIdx >= lastTraceIdx || automataIsInvalid
             }
             onClick={() => {
               if (!simulationResult) {
@@ -255,9 +246,7 @@ const TestingLab = () => {
           <Button icon={<SkipForward size={20} />}
             // eslint-disable-next-line no-mixed-operators
             disabled={
-                traceIdx >= lastTraceIdx ||
-                noInitialState ||
-                (projectType === 'TM' && !showTraceTape)
+                traceIdx >= lastTraceIdx || automataIsInvalid
             }
             onClick={() => {
               // Increment tracer index
@@ -267,9 +256,15 @@ const TestingLab = () => {
             }} />
         </StepButtons>
         {traceOutput && graph.projectType !== 'TM' && <div>
-          <TracePreview result={simulationResult} step={traceIdx} statePrefix={statePrefix} states={graph.states}/>
+          <TracePreview
+              result={simulationResult as (FSAExecutionResult | PDAExecutionResult) & {transitionCount: number}}
+              step={traceIdx}
+              statePrefix={statePrefix}
+              states={graph.states}
+          />
           <TraceConsole><pre>{traceOutput}</pre></TraceConsole>
         </div>}
+        {projectType !== 'TM' && (
         <Preference
           label={useMemo(() => Math.random() < 0.001 ? 'Trace buddy' : 'Trace tape', [])}
           style={{ marginBlock: 0 }}
@@ -277,10 +272,11 @@ const TestingLab = () => {
           <Switch
             type="checkbox"
             checked={showTraceTape}
-            disabled={((projectType === 'TM') && (!traceInput))}
+            disabled={automataIsInvalid}
             onChange={e => setShowTraceTape(e.target.checked)}
           />
         </Preference>
+        )}
       </Wrapper>
 
       <SectionLabel>Multi-run</SectionLabel>
@@ -301,21 +297,22 @@ const TestingLab = () => {
                 placeholder="λ"
                 color={multiTraceOutput?.[index]?.accepted !== undefined ? (multiTraceOutput[index].accepted ? 'success' : 'error') : undefined}
                 onPaste={e => {
-                  const paste = (e.clipboardData || navigator.clipboard).getData('text')
+                  const paste = e.clipboardData.getData('text')
                   if (!paste.includes('\n')) return
 
                   e.preventDefault()
                   const lines = paste.split(/\r?\n/).filter(l => l !== '')
                   lines.forEach((l, i) => i === 0 ? updateMultiTraceInput(index, l) : addMultiTraceInput(l))
                 }}
-                onKeyDown={e => {
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                  assertType<HTMLElement>(e.target)
                   if (e.key === 'Enter' && !e.repeat) {
                     if (e.metaKey || e.ctrlKey) {
                       // Run shortcut
                       rerunMultiTraceInput()
                     } else {
                       addMultiTraceInput()
-                      window.setTimeout(() => e.target.closest('div').parentElement?.querySelector('div:last-of-type > input')?.focus(), 50)
+                      window.setTimeout(() => (e.target as HTMLElement).closest('div').parentElement?.querySelector<HTMLElement>('div:last-of-type > input')?.focus(), 50)
                     }
                   }
                   if (e.key === 'Backspace' && value === '' && !e.repeat) {
@@ -323,16 +320,16 @@ const TestingLab = () => {
                     e.preventDefault()
                     e.target?.focus()
                     if (e.target.closest('div').parentElement?.querySelector('div:last-of-type > input') === e.target) {
-                      e.target?.closest('div')?.previousSibling?.querySelector('input')?.focus()
+                      (e.target?.closest('div')?.previousSibling as HTMLElement)?.querySelector('input')?.focus()
                     }
                     removeMultiTraceInput(index)
                     setMultiTraceOutput([])
                   }
                   if (e.key === 'ArrowUp') {
-                    e.target?.closest('div')?.previousSibling?.querySelector('input')?.focus()
+                    (e.target?.closest('div')?.previousSibling as HTMLElement)?.querySelector('input')?.focus()
                   }
                   if (e.key === 'ArrowDown') {
-                    e.target?.closest('div')?.nextSibling?.querySelector('input')?.focus()
+                    (e.target?.closest('div')?.nextSibling as HTMLElement)?.querySelector('input')?.focus()
                   }
                 }}
               />

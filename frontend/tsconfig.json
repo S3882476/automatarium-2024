@@ -12,7 +12,8 @@
     "paths": {
       "/src/*": ["./src/*"]
     },
-    "lib": ["DOM", "ES2021"],
+    "types": ["@types/lodash"],
+    "lib": ["DOM", "ES2021", "dom.iterable"],
     "outDir": "dist/"
   },
   "include": [
