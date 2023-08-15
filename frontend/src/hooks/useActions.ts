@@ -106,13 +106,13 @@ const useActions = (registerHotkeys = false) => {
     IMPORT_AUTOMATARIUM_PROJECT: {
       hotkeys: [{ key: 'i', meta: true }],
       handler: async () => {
-        if (window.confirm('Importing will override your current project. Continue anyway?')) { promptLoadFile(JSON.parse, setProject, 'Failed to open automatarium project') }
+        if (window.confirm('Importing will override your current project. Continue anyway?')) { promptLoadFile(JSON.parse, setProject, 'Failed to open automatarium project', '.json') }
       }
     },
     IMPORT_JFLAP_PROJECT: {
       hotkeys: [{ key: 'i', meta: true, shift: true }],
       handler: async () => {
-        if (window.confirm('Importing will override your current project. Continue anyway?')) { promptLoadFile(convertJFLAPXML, setProject, 'Failed to open JFLAP project') }
+        if (window.confirm('Importing will override your current project. Continue anyway?')) { promptLoadFile(convertJFLAPXML, setProject, 'Failed to open JFLAP project', '.jff') }
       }
     },
     SAVE_FILE: {
@@ -222,6 +222,21 @@ const useActions = (registerHotkeys = false) => {
         }
       }
     },
+    DELETE_EDGE: {
+      disabled: () => useSelectionStore.getState()?.selectedTransitions?.length === 0,
+      handler: () => {
+        const tIds = selectedTransitionsIds
+        const { transitions } = useProjectStore.getState()?.project ?? {}
+        const oneTransitionOnEdge = transitions.find(t => tIds.includes(t.id))
+        // Expand IDs to include ALL on the edge
+        const allTransitionIdsOnEdge = transitions.filter(
+          t => t.from === oneTransitionOnEdge.from && t.to === oneTransitionOnEdge.to
+        ).map(t => t.id)
+        removeTransitions(allTransitionIdsOnEdge)
+        selectNone()
+        commit()
+      }
+    },
     ZOOM_IN: {
       hotkeys: [{ key: '=', meta: true }],
       handler: () => zoomViewTo(useViewStore.getState().scale - 0.1)
@@ -261,14 +276,10 @@ const useActions = (registerHotkeys = false) => {
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'options' })
     },
     CONVERT_TO_DFA: {
-      disabled: () => projectType !== 'FSA',
+      disabled: () => projectType !== 'FSA' || project.initialState === null,
       handler: () => {
-        try {
-          updateGraph(reorderStates(convertNFAtoDFA(reorderStates(project as FSAProjectGraph))))
-          commit()
-        } catch (error) {
-          showWarning(error.message)
-        }
+        updateGraph(convertNFAtoDFA(project as FSAProjectGraph))
+        commit()
       }
     },
     AUTO_LAYOUT: {
@@ -340,6 +351,14 @@ const useActions = (registerHotkeys = false) => {
         window.setTimeout(() => dispatchCustomEvent('editTransition', { id: selectedTransition }), 100)
       }
     },
+    EDIT_TRANSITIONS_GROUP: {
+      disabled: () => useSelectionStore.getState()?.selectedTransitions?.length === 0,
+      handler: () => {
+        const selectedTransitions = useSelectionStore.getState().selectedTransitions
+        if (selectedTransitions === undefined) return
+        window.setTimeout(() => dispatchCustomEvent('editTransitionGroup', { ids: selectedTransitions }), 100)
+      }
+    },
     FLIP_TRANSITION: {
       handler: () => {
         const selectedTransitions = useSelectionStore.getState().selectedTransitions
@@ -380,7 +399,7 @@ const useActions = (registerHotkeys = false) => {
         const states = storeState?.project?.states?.filter(s => selected.includes(s.id))
         if (states && states.length > 1) {
           const meanY = states.map(state => state.y).reduce((a, b) => a + b) / states.length
-          states.forEach(state => storeState.updateState({ ...state, y: meanY }))
+          storeState.updateStates(states.map(state => ({ ...state, y: meanY })))
           commit()
         }
       }
@@ -393,7 +412,7 @@ const useActions = (registerHotkeys = false) => {
         const states = storeState?.project?.states?.filter(s => selected.includes(s.id))
         if (states && states.length > 1) {
           const meanX = states.map(state => state.x).reduce((a, b) => a + b) / states.length
-          states.forEach(state => storeState.updateState({ ...state, x: meanX }))
+          storeState.updateStates(states.map(state => ({ ...state, x: meanX })))
           commit()
         }
       }
@@ -502,10 +521,11 @@ const zoomViewTo = (to: number) => {
   }
 }
 
-const promptLoadFile = <T>(parse: (text: ArrayBuffer | string) => T, onData: (val: T) => void, errorMessage = 'Failed to parse file') => {
+const promptLoadFile = <T>(parse: (text: ArrayBuffer | string) => T, onData: (val: T) => void, errorMessage = 'Failed to parse file', accept: string) => {
   // Prompt user for file input
   const input = document.createElement('input')
   input.type = 'file'
+  input.accept = accept
   input.onchange = () => {
     // Read file data
     const reader = new FileReader()
