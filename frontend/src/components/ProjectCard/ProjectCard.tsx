@@ -3,10 +3,10 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 
 import { Logo } from '/src/components'
 
-import { CardContainer, CardImage, TypeBadge, CardDetail, SelectedTemplateOverlay } from './projectCardStyle'
 import { MoreVertical } from 'lucide-react'
+import { ButtonHTMLAttributes, Ref } from 'react'
+import { CardContainer, CardDetail, CardImage, SelectedTemplateOverlay, TitleAndKebab, TypeBadge } from './projectCardStyle'
 import { ProjectType } from '/src/types/ProjectTypes'
-import { ButtonHTMLAttributes } from 'react'
 dayjs.extend(relativeTime)
 
 type ProjectCardProps = {
@@ -14,21 +14,20 @@ type ProjectCardProps = {
   type?: ProjectType | '???' // '???' is used has a default type
   date: string | Dayjs
   image?: string
-  projectId?: string,
   isSelectedTemplate?: boolean,
-  showKebab?: boolean,
   width: number,
   $istemplate: boolean,
   // Typescript currently doesn't supprt the spread operator with generics.
   // So we need to workaround that and add the extra props ourself
   onClick?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
+  $kebabClick?: ButtonHTMLAttributes<HTMLAnchorElement>['onClick'],
+  $kebabRef?: Ref<HTMLAnchorElement>
   disabled?: boolean,
 }
 
-// TODO: Remove this when projectId is actually used
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ProjectCard = ({ name, type, date, image, projectId, isSelectedTemplate = false, showKebab = true, ...props }: ProjectCardProps) => {
-  return <CardContainer {...props}>
+const ProjectCard = ({ name, type, date, image, isSelectedTemplate = false, ...props }: ProjectCardProps) => {
+  const { ...rest } = props
+  return <CardContainer {...rest}>
     <CardImage $image={!!image}>
       {image ? <img src={image} alt="" /> : <Logo />}
       {type && <TypeBadge>{type}</TypeBadge>}
@@ -36,8 +35,14 @@ const ProjectCard = ({ name, type, date, image, projectId, isSelectedTemplate = 
       {isSelectedTemplate && <SelectedTemplateOverlay/>}
     </CardImage>
     <CardDetail>
-      <strong>{name}</strong>
-      {showKebab && <MoreVertical/>}
+      <TitleAndKebab>
+        <strong>{name}</strong>
+        <div>
+          <a onClick={props.$kebabClick} ref={props.$kebabRef}>
+            <MoreVertical/>
+          </a>
+        </div>
+      </TitleAndKebab>
       {date && <span>{date instanceof dayjs ? dayjs().to(date) : date as string}</span>}
     </CardDetail>
   </CardContainer>
