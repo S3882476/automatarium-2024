@@ -6,7 +6,7 @@ import { useProjectStore, useViewStore } from '/src/stores'
 import useEvent from '/src/hooks/useEvent'
 import { locateTransition } from '/src/util/states'
 import { lerpPoints } from '/src/util/points'
-import { formatInput, splitCharsWithOr } from '/src/util/orOperators'
+import { formatInput, formatOutput } from '/src/util/stringManipulations'
 import { DirectionRadioButtons } from '/src/components/Button/DirectionRadioButtons'
 
 import {
@@ -94,21 +94,24 @@ const InputDialogs = () => {
   const screenToViewSpace = useViewStore(s => s.screenToViewSpace)
   const statePrefix = useProjectStore(s => s.project.config.statePrefix)
   const projectType = useProjectStore(s => s.project.config.type)
-  const orOperator = useProjectStore(s => s.project.config.orOperator)
+  const orOperator = useProjectStore(s => s.project.config.orOperator) ?? '|'
   const hideDialog = useCallback(() => setDialog({ ...dialog, visible: false }), [dialog])
   const focusInput = useCallback(() => setTimeout(() => inputRef.current?.focus(), 100), [inputRef.current])
+  const [isNew, setIsNew] = useState(true)
   const arr = [inputWriteRef.current, inputDirectionRef.current, inputRef.current]
-  useEvent('editTransition', ({ detail: { id } }) => {
+
+  useEvent('editTransition', ({ detail: { id, new: isNewTransition } }) => {
     const { states, transitions } = useProjectStore.getState()?.project ?? {}
     const transition = transitions.find(t => t.id === id)
     // Find midpoint of transition in screen space
     const pos = locateTransition(transition, states)
     const midPoint = lerpPoints(pos.from, pos.to, 0.5)
     const screenMidPoint = viewToScreenSpace(midPoint.x, midPoint.y)
+    setIsNew(isNewTransition ?? true) // Default a.k.a. previous functionality assumes new
     switch (projectType) {
       case 'TM':
         assertType<TMAutomataTransition>(transition)
-        setValue(splitCharsWithOr(transition?.read, orOperator) ?? '')
+        setValue(formatOutput(transition?.read, orOperator) ?? '')
         setWrite(transition?.write ?? '')
         setDirection(transition?.direction ?? 'R')
         setDialog({
@@ -121,7 +124,7 @@ const InputDialogs = () => {
         break
       case 'PDA':
         assertType<PDAAutomataTransition>(transition)
-        setValue(splitCharsWithOr(transition?.read, orOperator) ?? '')
+        setValue(formatOutput(transition?.read, orOperator) ?? '')
         setValuePush(transition?.push ?? '')
         setValuePop(transition?.pop ?? '')
         setDialog({
@@ -133,7 +136,7 @@ const InputDialogs = () => {
         })
         break
       case 'FSA':
-        setValue(splitCharsWithOr(transition?.read, orOperator) ?? '')
+        setValue(formatOutput(transition?.read, orOperator) ?? '')
         setDialog({
           visible: true,
           x: screenMidPoint[0],
@@ -275,7 +278,7 @@ const InputDialogs = () => {
     visible: dialog.visible,
     onClose: () => {
       hideDialog()
-      if (['FSATransition', 'PDATransition', 'TMTransition'].includes(dialog.type)) {
+      if (isNew && ['FSATransition', 'PDATransition', 'TMTransition'].includes(dialog.type)) {
         removeTransitions([dialog.id])
       }
     },
