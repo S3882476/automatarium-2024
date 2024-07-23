@@ -1,13 +1,16 @@
 import { Tape } from './graph'
 import { Graph, Node, State } from './interfaces/graph'
-import { TMAutomataTransition } from 'frontend/src/types/ProjectTypes'
+import { TMAutomataTransition, TMDirection } from 'frontend/src/types/ProjectTypes'
 import { extractSymbolsToExclude } from 'frontend/src/util/stringManipulations'
 
 export class TMState extends State {
   constructor (
     id: number,
     isFinal: boolean,
-    public tape?: Tape
+    public tape?: Tape,
+    readonly direction: TMDirection | null = null,
+    readonly read: string | null = null,
+    readonly write: string | null = null
   ) {
     super(id, isFinal)
   }
@@ -15,6 +18,13 @@ export class TMState extends State {
   key () {
     const traceAdd = this.tape.trace.toString() ?? ''
     return String(this.id + ',' + this.tape.pointer + ',' + traceAdd)
+  }
+
+  toTransitionString () {
+    // TODO find better place to put function
+    const formatSymbol = (char?: string): string =>
+      char === null || char === '' ? 'λ' : char
+    return `${formatSymbol(this.read)},${formatSymbol(this.write)};${formatSymbol(this.direction)}`
   }
 }
 
@@ -38,8 +48,12 @@ export class TMGraph extends Graph<TMState, TMAutomataTransition> {
       const tapePointer = node.state.tape.pointer
       const tapeTrace = node.state.tape.trace
 
+      const lambdaTransitionRead = transition.read.length === 0
+      const lambdaTransitionWrite = transition.write.length === 0
+
       // Undefined means its out of tape bounds, so we treat that has a lambda transition
       const symbol = tapeTrace[tapePointer] ?? ''
+      const writeSymbol = transition.write ?? ''
       let nextTape = this.progressTape(node, transition)
 
       // Get any symbols preceded by an exclusion operator
@@ -66,7 +80,10 @@ export class TMGraph extends Graph<TMState, TMAutomataTransition> {
         const graphState = new TMState(
           nextState.id,
           nextState.isFinal,
-          nextTape
+          nextTape,
+          transition.direction,
+          lambdaTransitionRead ? '' : symbol,
+          lambdaTransitionWrite ? '' : writeSymbol
         )
         const successor = new Node(graphState, node)
         successors.push(successor)

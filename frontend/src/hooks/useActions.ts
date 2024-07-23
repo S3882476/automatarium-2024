@@ -10,7 +10,7 @@ import useEdgeContext from './useEdgeContext'
 import { stopTemplateInsert } from '/src/components/Sidepanel/Panels/Templates/Templates'
 import { showWarning } from '/src/components/Warning/Warning'
 import { COPY_DATA_KEY, SCROLL_MAX, SCROLL_MIN, VIEW_MOVE_STEP } from '/src/config/interactions'
-import { useContextStore, useProjectStore, useProjectsStore, useSelectionStore, useTemplateStore, useTemplatesStore, useToolStore, useViewStore } from '/src/stores'
+import { useContextStore, usePopupsStore, useProjectStore, useProjectsStore, useSelectionStore, useTemplateStore, useTemplatesStore, useToolStore, useViewStore } from '/src/stores'
 import { InsertGroupResponseType, StoredProject, createNewProject } from '/src/stores/useProjectStore'
 import { CopyData, FSAProjectGraph } from '/src/types/ProjectTypes'
 import { haveInputFocused } from '/src/util/actions'
@@ -277,20 +277,22 @@ const useActions = (registerHotkeys = false) => {
       hotkeys: [{ key: '1', shift: true }],
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'test' })
     },
+    /*
     STEPPING_LAB: {
       hotkeys: [{ key: '2', shift: true }],
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'step' })
     },
+    */
     FILE_INFO: {
-      hotkeys: [{ key: '3', shift: true }],
+      hotkeys: [{ key: '2', shift: true }],
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'about' })
     },
     FILE_OPTIONS: {
-      hotkeys: [{ key: '4', shift: true }],
+      hotkeys: [{ key: '3', shift: true }],
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'options' })
     },
     TEMPLATES: {
-      hotkeys: [{ key: '5', shift: true }],
+      hotkeys: [{ key: '4', shift: true }],
       handler: () => dispatchCustomEvent('sidepanel:open', { panel: 'templates' })
     },
     CONVERT_TO_DFA: {
@@ -353,6 +355,18 @@ const useActions = (registerHotkeys = false) => {
     TOGGLE_STATES_FINAL: {
       disabled: () => useSelectionStore.getState()?.selectedStates?.length === 0,
       handler: () => {
+        if (project.projectType === 'TM') {
+          // Show popup until confirmed
+          const showFinalState = usePopupsStore.getState().popups?.showFinalState
+          if (showFinalState) {
+            dispatchCustomEvent('modal:finalstate', null)
+          } else {
+            // TEST CODE FOR POPUP - NOT TO BE ENABLED ON DEV VERSION
+            // if (window.confirm('Popup is now disabled, confirm to re-enable.')) {
+            //   usePopupsStore.getState().setPopups({ showFinalState: true })
+            // }
+          }
+        }
         const selectedStateIDs = useSelectionStore.getState().selectedStates
         if (selectedStateIDs.length > 0) {
           toggleStatesFinal(selectedStateIDs)
