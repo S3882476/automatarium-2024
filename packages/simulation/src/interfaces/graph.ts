@@ -21,7 +21,7 @@ export class Node<S extends State> {
 // eslint-disable-next-line no-unused-vars
 export abstract class Graph<S extends State, T extends BaseAutomataTransition> {
   readonly initial: Node<S>
-  protected states: S[]
+  readonly states: S[]
   public transitions: T[]
 
   constructor (initial: Node<S>, states: S[], transitions: T[]) {

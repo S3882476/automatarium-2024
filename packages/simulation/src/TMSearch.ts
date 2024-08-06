@@ -114,3 +114,17 @@ export class TMGraph extends Graph<TMState, TMAutomataTransition> {
     return newTape
   }
 }
+
+/**
+ * Turing machine that doesn't stop in final states
+ */
+export class NoStepTM extends TMGraph {
+  constructor (graph: TMGraph) {
+    super(graph.initial, graph.states, graph.transitions)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isFinalState (node: Node<TMState>): boolean {
+    return false
+  }
+}

@@ -35,7 +35,14 @@ import { PDAState } from '@automatarium/simulation/src/PDASearch'
 import { TMState } from '@automatarium/simulation/src/TMSearch'
 import { buildProblem } from '@automatarium/simulation/src/utils'
 // import { ButtonGroup } from '/src/pages/NewFile/newFileStyle'
-import { FSAProjectGraph, PDAProjectGraph, TMProjectGraph, BaseAutomataTransition, assertType } from '/src/types/ProjectTypes'
+import {
+  FSAProjectGraph,
+  PDAProjectGraph,
+  TMProjectGraph,
+  BaseAutomataTransition,
+  assertType,
+  ProjectGraph
+} from '/src/types/ProjectTypes'
 
 import usePreferencesStore from 'frontend/src/stores/usePreferencesStore'
 
@@ -72,7 +79,7 @@ const TestingLab = () => {
 
   // Preference option to pause/unpause TM at Final State
   const preferences = usePreferencesStore(state => state.preferences)
-  const simulateAutomata = (graph, input: string, node: Node<FSAState|PDAState|TMState> | null = null) => {
+  const simulateAutomata = (graph: ProjectGraph, input: string, node: Node<FSAState|PDAState|TMState> | null = null) => {
     let result
     switch (graph.projectType) {
       case ('PDA'):
@@ -158,6 +165,7 @@ const TestingLab = () => {
       handleStep('Reset')
     }
   }, [traceInput, enableManualStepping])
+
   /**
    * Runs the correct simulation result for a trace input and returns the result.
    * The simulation function to use depends on the project name
@@ -167,53 +175,52 @@ const TestingLab = () => {
     // TODO: Find reasoning behind the magical -1
     const transitionCount = (res: ExecutionResult) =>
       Math.max(1, res.trace.length) - (res.accepted ? 1 : graph.projectType === 'TM' ? 1 : 0)
-    if (['PDA', 'FSA', 'TM'].includes(graph.projectType)) {
-      let node = null
-      if (enableManualStepping) {
-        let _problem = problem
-        // chance problem hasn't been created yet & node hasn't been, set to defaults if not found
-        if (!_problem) {
-          _problem = buildProblem(graph, input ?? '')
-        }
-        node = currentManualNode ?? _problem.initial
-        // Sets node for simulation to be next one so ui doesn't say problem in progress is rejected
-        if (!_problem.isFinalState(node) && _problem.getSuccessors(node).length !== 0) {
-          node = _problem.getSuccessors(node)[0]
-        }
-      }
-      const result = simulateAutomata(graph, input ?? '', node)
-      // Formats a symbol. Makes an empty symbol become a lambda
-      const formatSymbol = (char?: string): string =>
-        char === null || char === '' ? 'λ' : char
-      return {
-        ...result,
-        // We need format the symbols in the trace so any empty symbols become lambdas
-        trace: result.trace.map((step: FSAExecutionTrace | PDAExecutionTrace | TMExecutionTrace) => ({
-          to: step.to,
-          read: formatSymbol(step.read),
-          // Add extra info if its a PDA trace.
-          // I know this isn't needed, but it pleases typescript
-          ...('currentStack' in step
-            ? {
-                pop: formatSymbol(step.pop),
-                push: formatSymbol(step.push),
-                currentStack: step.currentStack
-              }
-            : {}),
-          // Info for TMs
-          ...('tape' in step
-            ? {
-                tape: step.tape,
-                write: formatSymbol(step.write),
-                direction: step.direction
-              }
-            : {})
-
-        } as FSAExecutionTrace | PDAExecutionTrace | TMExecutionTrace)),
-        transitionCount: transitionCount(result)
-      }
-    } else {
+    if (!['PDA', 'FSA', 'TM'].includes(graph.projectType)) {
       throw new Error(`${projectType} is not supported`)
+    }
+    let node = null
+    if (enableManualStepping) {
+      let _problem = problem
+      // chance problem hasn't been created yet & node hasn't been, set to defaults if not found
+      if (!_problem) {
+        _problem = buildProblem(graph, input ?? '')
+      }
+      node = currentManualNode ?? _problem.initial
+      // Sets node for simulation to be next one so ui doesn't say problem in progress is rejected
+      if (!_problem.isFinalState(node) && _problem.getSuccessors(node).length !== 0) {
+        node = _problem.getSuccessors(node)[0]
+      }
+    }
+    const result = simulateAutomata(graph, input ?? '', node)
+    // Formats a symbol. Makes an empty symbol become a lambda
+    const formatSymbol = (char?: string): string =>
+      char === null || char === '' ? 'λ' : char
+    return {
+      ...result,
+      // We need format the symbols in the trace so any empty symbols become lambdas
+      trace: result.trace.map((step: FSAExecutionTrace | PDAExecutionTrace | TMExecutionTrace) => ({
+        to: step.to,
+        read: formatSymbol(step.read),
+        // Add extra info if its a PDA trace.
+        // I know this isn't needed, but it pleases typescript
+        ...('currentStack' in step
+          ? {
+              pop: formatSymbol(step.pop),
+              push: formatSymbol(step.push),
+              currentStack: step.currentStack
+            }
+          : {}),
+        // Info for TMs
+        ...('tape' in step
+          ? {
+              tape: step.tape,
+              write: formatSymbol(step.write),
+              direction: step.direction
+            }
+          : {})
+
+      } as FSAExecutionTrace | PDAExecutionTrace | TMExecutionTrace)),
+      transitionCount: transitionCount(result)
     }
   }
 

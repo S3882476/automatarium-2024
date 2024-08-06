@@ -1,7 +1,7 @@
-import { TMGraph, TMState } from './TMSearch'
+import { NoStepTM, TMState } from './TMSearch'
 import { TMExecutionResult, TMExecutionTrace } from './graph'
 import { Node } from './interfaces/graph'
-import { breadthFirstSearch, breadthFirstSearchNoPause } from './search'
+import { breadthFirstSearch } from './search'
 import { buildProblem, newTape } from './utils'
 import { TMProjectGraph } from 'frontend/src/types/ProjectTypes'
 import { Preferences } from 'frontend/src/stores/usePreferencesStore'
@@ -33,7 +33,10 @@ export const simulateTM = (
   input: string,
   preferences: Preferences
 ): TMExecutionResult => {
-  const problem = buildProblem(graph, input) as TMGraph
+  let problem = buildProblem(graph, input)
+  if (!preferences.pauseTM) {
+    problem = new NoStepTM(problem)
+  }
 
   if (!problem) {
     return {
@@ -42,33 +45,17 @@ export const simulateTM = (
       trace: []
     }
   }
-  if (preferences.pauseTM) {
-    const result = breadthFirstSearch(problem)
-    if (!result) {
-      return {
-        trace: [{ to: 0, read: null, tape: null, write: null, direction: null }],
-        accepted: false,
-        tape: newTape(input)
-      }
-    }
+  const result = breadthFirstSearch(problem)
+  if (!result) {
     return {
-      accepted: result.state.isFinal,
-      tape: result.state.tape,
-      trace: generateTrace(result)
+      trace: [{ to: 0, read: null, tape: null, write: null, direction: null }],
+      accepted: false,
+      tape: newTape(input)
     }
-  } else {
-    const result = breadthFirstSearchNoPause(problem)
-    if (!result) {
-      return {
-        trace: [{ to: 0, read: null, tape: null, write: null, direction: null }],
-        accepted: false,
-        tape: newTape(input)
-      }
-    }
-    return {
-      accepted: result.state.isFinal,
-      tape: result.state.tape,
-      trace: generateTrace(result)
-    }
+  }
+  return {
+    accepted: result.state.isFinal,
+    tape: result.state.tape,
+    trace: generateTrace(result)
   }
 }

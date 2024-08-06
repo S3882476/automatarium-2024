@@ -1,7 +1,13 @@
 import {
   AutomataState,
-  BaseAutomataTransition, FSAAutomataTransition, FSAProjectGraph, PDAAutomataTransition, PDAProjectGraph,
-  ProjectGraph, TMAutomataTransition, TMProjectGraph
+  BaseAutomataTransition,
+  FSAAutomataTransition,
+  FSAProjectGraph,
+  PDAAutomataTransition,
+  PDAProjectGraph,
+  ProjectGraph,
+  TMAutomataTransition,
+  TMProjectGraph
 } from 'frontend/src/types/ProjectTypes'
 import { expandReadSymbols } from './parseGraph'
 import { Node } from './interfaces/graph'
@@ -74,7 +80,7 @@ export const newTape = (input: string): Tape => ({ pointer: 0, trace: input ? in
 /**
  * Builds the graph into a problem graph so that it can be simulated
  */
-export function buildProblem <M extends ProjectGraph> (graph: M, input: string): GraphMapping<M> | null {
+export function buildProblem<M extends ProjectGraph> (graph: M, input: string): GraphMapping<M> | null {
   // Make some type aliases
   type S = StateMapping<M>
   type T = TransitionMapping<M>
